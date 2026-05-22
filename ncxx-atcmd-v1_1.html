@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCXX WEB SERIAL- Ubuntu Style</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;600;700&display=swap');
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        #log::-webkit-scrollbar { width: 6px; }
+        #log::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        .status-glow { transition: all 0.3s ease; }
+        .connected-glow { box-shadow: 0 0 12px #22c55e; background-color: #22c55e !important; }
+        .disconnected-glow { box-shadow: 0 0 12px #ef4444; background-color: #ef4444 !important; }
+        
+        /* Smooth progress bar transition */
+        #loopProgress { transition: width 0.1s linear; }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 transition-colors duration-300 p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto space-y-6">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">NCXX WEB SERIAL</h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div id="statusDot" class="w-3 h-3 rounded-full bg-red-500 status-glow disconnected-glow"></div>
+                        <span id="statusText" class="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Disconnected</span>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-3">
+                    <button id="themeToggle" class="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+                        <i class="fas fa-moon dark:hidden"></i>
+                        <i class="fas fa-sun hidden dark:block"></i>
+                    </button>
+
+                    <div class="relative">
+                        <span class="absolute -top-2 left-2 px-1 bg-white dark:bg-slate-900 text-[10px] text-slate-400 font-bold uppercase">Baud Rate</span>
+                        <input type="number" id="baudRate" value="115200" 
+                               class="w-32 px-3 py-2 bg-transparent border border-slate-200 dark:border-slate-700 dark:text-white rounded-lg text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <button id="connectBtn" class="flex items-center gap-2 px-6 py-2 bg-slate-900 dark:bg-blue-600 hover:bg-black dark:hover:bg-blue-500 text-white rounded-lg font-bold transition-all active:scale-95 shadow-lg">
+                        <i class="fas fa-link"></i> <span>Connect Port</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                            <tr>
+                                <th class="px-4 py-3 font-black text-slate-400 uppercase text-[10px]">Function</th>
+                                <th class="px-4 py-3 font-black text-slate-400 uppercase text-[10px]">Command / Result</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                            <tr>
+                                <td class="px-4 py-4 text-slate-700 dark:text-slate-300">Device Info</td>
+                                <td class="px-4 py-4">
+                                    <button data-cmd="ATI" class="cmd-btn w-20 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 hover:text-white rounded-md font-bold text-blue-600 dark:text-blue-400 transition-all">ATI</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-4 text-slate-700 dark:text-slate-300">Radio Mode</td>
+                                <td class="px-4 py-4 flex gap-2">
+                                    <button data-cmd="AT+CFUN=1" class="cmd-btn flex-1 py-1.5 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-600 hover:text-white rounded-md font-bold transition-all">ON</button>
+                                    <button data-cmd="AT+CFUN=4" class="cmd-btn flex-1 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-600 hover:text-white rounded-md font-bold transition-all">OFF</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-4 text-slate-700 dark:text-slate-300">IMSI Info</td>
+                                <td class="px-4 py-4 space-y-2">
+                                    <button data-cmd="AT+CIMI" class="cmd-btn w-20 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 hover:text-white rounded-md font-bold text-blue-600 dark:text-blue-400 transition-all">CIMI</button>
+                                    <div id="imsiResult" class="text-[10px] mono text-blue-600 dark:text-blue-400 break-all bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded hidden"></div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-4 text-slate-700 dark:text-slate-300">Search Cell</td>
+                                <td class="px-4 py-4">
+                                    <button data-cmd="AT+CELLINFO=1" class="cmd-btn w-20 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 hover:text-white rounded-md font-bold text-blue-600 dark:text-blue-400 transition-all uppercase">Search</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-4 text-slate-700 dark:text-slate-300">IP Status</td>
+                                <td class="px-4 py-4">
+                                    <button data-cmd="AT+CGPADDR" class="cmd-btn w-20 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 dark:hover:bg-white dark:hover:text-slate-900 hover:text-white rounded-md font-bold text-slate-700 dark:text-slate-300 transition-all">Check</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xs font-black text-slate-400 uppercase flex items-center gap-2">
+                            <i class="fas fa-satellite-dish text-blue-500"></i> Auto Cell Search
+                        </h3>
+                        <span id="loopStatusBadge" class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-400 uppercase">Idle</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="relative col-span-1">
+                            <span class="absolute -top-2 left-2 px-1 bg-white dark:bg-slate-900 text-[10px] text-slate-400 font-bold">INTERVAL</span>
+                            <div class="flex items-center">
+                                <input type="number" id="loopIntervalInput" value="5" min="1" 
+                                       class="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-white rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none">
+                                <span class="ml-2 text-xs text-slate-400 font-bold">sec</span>
+                            </div>
+                        </div>
+                        <div class="col-span-1 flex items-end">
+                            <button id="searchCellBtn" disabled class="w-full h-[42px] bg-blue-600 hover:bg-blue-700 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-300 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2">
+                                <i class="fas fa-play text-[10px]" id="loopIcon"></i> <span id="loopBtnText">Start</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="loopDisplay" class="hidden space-y-2 pt-2">
+                        <div class="flex justify-between items-end">
+                            <span class="text-[10px] text-blue-600 dark:text-blue-400 font-black uppercase">Next Update In</span>
+                            <span class="text-sm font-bold text-slate-700 dark:text-slate-200 mono"><span id="loopTimer">0</span>s</span>
+                        </div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div id="loopProgress" class="bg-blue-500 h-full w-0"></div>
+                        </div>
+                        <p class="text-[9px] text-slate-400 italic text-center">Executing AT+CELLINFO=1</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8 space-y-4">
+                <div class="bg-[#300a24] rounded-lg shadow-2xl border border-slate-700 flex flex-col h-[600px] overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-2 bg-slate-800/90 border-b border-slate-900">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-terminal text-slate-400 text-xs"></i>
+                            <span class="text-[11px] font-bold text-slate-200 tracking-wide">ncxx</span>
+                        </div>
+                        <div class="flex gap-4">
+                            <button id="clearLog" class="text-[10px] font-bold text-slate-400 hover:text-white uppercase transition-colors">Clear</button>
+                            <button id="downloadLog" class="text-[10px] font-bold text-slate-400 hover:text-white uppercase transition-colors">Export</button>
+                        </div>
+                    </div>
+                    
+                    <div id="log" class="flex-grow overflow-y-auto p-6 mono text-[13px] leading-relaxed space-y-1.5 text-slate-100">
+                        <div class="text-slate-500 opacity-50 italic"># NCXX Terminal Initialized.</div>
+                    </div>
+
+                    <div class="p-4 bg-black/30 border-t border-slate-800">
+                        <div class="flex gap-3">
+                            <div class="flex-grow relative">
+                                <span class="absolute left-4 top-2.5 text-emerald-500 font-bold mono">$</span>
+                                <input type="text" id="manualCmd" placeholder="Enter Command (or 'while true...' loop)" 
+                                       class="w-full bg-[#1a0514] border border-slate-800 rounded-md pl-10 pr-4 py-2.5 text-slate-100 mono focus:outline-none focus:border-emerald-500 transition-all">
+                            </div>
+                            <button id="sendBtn" class="bg-emerald-600 text-white px-6 rounded-md hover:bg-emerald-500 transition-all shadow-lg font-bold text-sm">
+                                RUN
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let port, reader, searchInterval, loopTickInterval, manualLoopInterval;
+        let isSearching = false;
+        let currentSeconds = 0;
+        let cmdHistory = [];
+        let historyIndex = -1;
+        let lastCommandSent = "";
+
+        const log = document.getElementById('log');
+        const manualCmd = document.getElementById('manualCmd');
+        const sendBtn = document.getElementById('sendBtn');
+        const connectBtn = document.getElementById('connectBtn');
+        const searchCellBtn = document.getElementById('searchCellBtn');
+        const imsiResult = document.getElementById('imsiResult');
+        const loopIntervalInput = document.getElementById('loopIntervalInput');
+        const loopTimerDisplay = document.getElementById('loopTimer');
+        const loopProgress = document.getElementById('loopProgress');
+        const loopDisplay = document.getElementById('loopDisplay');
+        const loopStatusBadge = document.getElementById('loopStatusBadge');
+        const loopBtnText = document.getElementById('loopBtnText');
+        const loopIcon = document.getElementById('loopIcon');
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+        });
+
+        function addToLog(msg, type) {
+            const div = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            let color = 'text-slate-300';
+            let prefix = '';
+
+            if (type === 'tx') { color = 'text-emerald-400 font-bold'; prefix = '>> '; }
+            else if (type === 'rx') { 
+                color = 'text-blue-300'; prefix = '<< ';
+                if (lastCommandSent === "AT+CIMI") {
+                    const cleanMsg = msg.replace(/OK|ERROR|\r|\n/g, '').trim();
+                    if (cleanMsg.length > 5) {
+                        imsiResult.innerText = cleanMsg;
+                        imsiResult.classList.remove('hidden');
+                    }
+                }
+            }
+            else if (type === 'info') { color = 'text-slate-500 italic'; }
+
+            div.className = color;
+            div.innerHTML = `<span class="text-slate-600 mr-2 font-normal">[${time}]</span><span>${prefix}${msg.replace(/\r/g, '').replace(/\n/g, '<br>')}</span>`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function toggleConnection() {
+            if (port) { location.reload(); return; }
+            try {
+                port = await navigator.serial.requestPort();
+                const baud = parseInt(document.getElementById('baudRate').value);
+                await port.open({ baudRate: baud });
+                document.getElementById('statusDot').className = 'w-3 h-3 rounded-full bg-green-500 status-glow connected-glow';
+                document.getElementById('statusText').innerText = 'Connected';
+                connectBtn.innerHTML = '<i class="fas fa-unlink"></i> <span>Disconnect</span>';
+                searchCellBtn.disabled = false;
+                readLoop();
+            } catch (err) { addToLog(`ERROR: ${err.message}`, 'info'); }
+        }
+
+        async function readLoop() {
+            while (port.readable) {
+                reader = port.readable.getReader();
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        addToLog(new TextDecoder().decode(value), 'rx');
+                    }
+                } finally { reader.releaseLock(); }
+            }
+        }
+
+        async function sendCmd(command) {
+            if (!port || !port.writable) return;
+            lastCommandSent = command;
+            const writer = port.writable.getWriter();
+            await writer.write(new TextEncoder().encode(command + '\r'));
+            addToLog(command, 'tx');
+            writer.releaseLock();
+        }
+
+        function handleManualSend() {
+            const rawValue = manualCmd.value.trim();
+            if (!rawValue) return;
+
+            if (rawValue !== cmdHistory[cmdHistory.length - 1]) cmdHistory.push(rawValue);
+            historyIndex = cmdHistory.length;
+
+            if (manualLoopInterval) {
+                clearInterval(manualLoopInterval);
+                manualLoopInterval = null;
+                sendBtn.innerText = "RUN";
+                manualCmd.value = "";
+                return;
+            }
+
+            const loopRegex = /while true;\s*do\s*(.*?);\s*sleep\s*(\d+);\s*done/i;
+            const match = rawValue.match(loopRegex);
+
+            if (match) {
+                const cmd = match[1].trim();
+                const sleep = parseInt(match[2]) * 1000;
+                sendCmd(cmd);
+                manualLoopInterval = setInterval(() => sendCmd(cmd), sleep);
+                manualCmd.value = "RUNNING... (Press RUN to Stop)";
+                sendBtn.innerText = "STOP";
+            } else {
+                sendCmd(rawValue);
+                manualCmd.value = "";
+            }
+        }
+
+        manualCmd.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex > 0) { historyIndex--; manualCmd.value = cmdHistory[historyIndex]; }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex < cmdHistory.length - 1) { historyIndex++; manualCmd.value = cmdHistory[historyIndex]; }
+                else { historyIndex = cmdHistory.length; manualCmd.value = ""; }
+            } else if (e.key === 'Enter') { e.preventDefault(); handleManualSend(); }
+        });
+
+        // --- CLEANER CELL SEARCH LOOP LOGIC ---
+        function toggleFixedSearch() {
+            if (isSearching) {
+                // Stop the loop
+                clearInterval(searchInterval);
+                clearInterval(loopTickInterval);
+                isSearching = false;
+                
+                // UI Reset
+                loopDisplay.classList.add('hidden');
+                loopStatusBadge.innerText = "Idle";
+                loopStatusBadge.className = "px-2 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-400 uppercase";
+                loopBtnText.innerText = "Start";
+                loopIcon.className = "fas fa-play text-[10px]";
+                loopIntervalInput.disabled = false;
+                searchCellBtn.className = "w-full h-[42px] bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2";
+            } else {
+                // Start the loop
+                const intervalSec = parseInt(loopIntervalInput.value) || 5;
+                isSearching = true;
+                currentSeconds = intervalSec;
+                
+                // UI Active State
+                loopDisplay.classList.remove('hidden');
+                loopStatusBadge.innerText = "Active Loop";
+                loopStatusBadge.className = "px-2 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 uppercase animate-pulse";
+                loopBtnText.innerText = "Stop";
+                loopIcon.className = "fas fa-stop text-[10px]";
+                loopIntervalInput.disabled = true;
+                searchCellBtn.className = "w-full h-[42px] bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2";
+
+                sendCmd('AT+CELLINFO=1');
+                resetTimer(intervalSec);
+
+                // Command Interval
+                searchInterval = setInterval(() => {
+                    sendCmd('AT+CELLINFO=1');
+                    currentSeconds = intervalSec;
+                }, intervalSec * 1000);
+
+                // Visual Tick Interval (100ms for smooth bar)
+                let totalTicks = intervalSec * 10;
+                let currentTicks = totalTicks;
+                
+                loopTickInterval = setInterval(() => {
+                    currentTicks--;
+                    if (currentTicks < 0) currentTicks = totalTicks;
+                    
+                    const secondsRemaining = Math.ceil(currentTicks / 10);
+                    loopTimerDisplay.innerText = secondsRemaining;
+                    
+                    const progressWidth = ((totalTicks - currentTicks) / totalTicks) * 100;
+                    loopProgress.style.width = `${progressWidth}%`;
+                }, 100);
+            }
+        }
+
+        function resetTimer(interval) {
+            loopTimerDisplay.innerText = interval;
+            loopProgress.style.width = '0%';
+        }
+
+        connectBtn.addEventListener('click', toggleConnection);
+        searchCellBtn.addEventListener('click', toggleFixedSearch);
+        sendBtn.addEventListener('click', handleManualSend);
+        document.querySelectorAll('.cmd-btn').forEach(btn => btn.addEventListener('click', () => sendCmd(btn.dataset.cmd)));
+        document.getElementById('clearLog').onclick = () => log.innerHTML = '';
+        document.getElementById('downloadLog').onclick = () => {
+            const blob = new Blob([log.innerText], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `NCXX_log_${Date.now()}.txt`;
+            a.click();
+        };
+    </script>
+</body>
+</html>
